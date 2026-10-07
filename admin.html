@@ -1,0 +1,48 @@
+<!DOCTYPE html>
+<html lang="en" dir="ltr"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="robots" content="noindex"><title>Admin</title>
+<style>
+body{margin:0;font-family:system-ui,Segoe UI,Tahoma,Arial,sans-serif;background:#eef2f7;color:#0d1f3c;line-height:1.6}
+.w{max-width:900px;margin:0 auto;padding:20px}h1{margin:0 0 4px}h2{margin:28px 0 10px}
+.c{background:#fff;border:1px solid #cfd9e8;border-radius:10px;padding:14px 16px;margin-bottom:10px}
+.c small{color:#51627e}pre{white-space:pre-wrap;margin:6px 0 0;font:inherit}
+input,textarea,select,button{font:inherit;padding:8px 10px;border:1px solid #cfd9e8;border-radius:6px;width:100%;margin-bottom:8px}
+button{width:auto;cursor:pointer;background:#e8890c;border:0;font-weight:700;color:#14233d}button.d{background:#fff;border:1px solid #cfd9e8;color:#a33;font-weight:400}
+.g{display:grid;grid-template-columns:1fr 1fr;gap:0 10px}.r{display:flex;justify-content:space-between;gap:10px;align-items:flex-start}
+</style></head><body><div class="w">
+<div id="login"><h1>Admin login</h1><input id="pw" type="password" placeholder="Password" autocomplete="current-password"><button id="go">Log in</button><p id="err" style="color:#a33"></p></div>
+<div id="app" hidden>
+<div class="r"><div><h1>Dashboard</h1><small id="vis"></small></div><button class="d" id="out">Log out</button></div>
+<h2>Messages (<span id="mc">0</span>)</h2><div id="msgs"></div>
+<h2>Guestbook (<span id="gc">0</span>)</h2><div id="gb"></div>
+<h2>Projects</h2><div id="pj"></div>
+<h2 id="ft">Add project</h2>
+<form id="pf" class="c"><div class="g">
+<input name="title_en" placeholder="Title (English)" required><input name="title_ar" placeholder="العنوان (عربي)">
+<textarea name="desc_en" placeholder="Description (English)" rows="2"></textarea><textarea name="desc_ar" placeholder="الوصف (عربي)" rows="2"></textarea>
+<input name="tags" placeholder="Tags, comma separated"><select name="category"><option value="iot">IoT</option><option value="net">Networking</option><option value="code" selected>Programming</option></select>
+<input name="link" placeholder="Link (https://...)"></div><button>Save project</button> <button type="button" class="d" id="cancel" hidden>Cancel edit</button></form>
+</div>
+<script>
+var tok='',edit=null,$=function(s){return document.querySelector(s)};
+try{tok=sessionStorage.getItem('t')||''}catch(e){}
+function esc(s){return String(s==null?'':s).replace(/[&<>"']/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]})}
+function call(p,m,b){return fetch(p,{method:m||'GET',headers:{'Content-Type':'application/json',Authorization:'Bearer '+tok},body:b?JSON.stringify(b):undefined}).then(function(r){return r.json().then(function(j){if(!r.ok)throw {status:r.status,data:j};return j})})}
+var D;
+function load(){call('/api/admin/overview').then(function(d){D=d;$('#login').hidden=true;$('#app').hidden=false;
+ $('#vis').textContent='Visits: '+d.visits;$('#mc').textContent=d.messages.length;$('#gc').textContent=d.guestbook.length;
+ $('#msgs').innerHTML=d.messages.map(function(m){return '<div class="c"><div class="r"><div><b>'+esc(m.name)+'</b> · <a href="mailto:'+esc(m.email)+'">'+esc(m.email)+'</a><br><small>'+new Date(m.created).toLocaleString()+'</small></div><button class="d" data-t="messages" data-id="'+m.id+'">Delete</button></div><pre>'+esc(m.message)+'</pre></div>'}).join('')||'<small>No messages yet.</small>';
+ $('#gb').innerHTML=d.guestbook.map(function(m){return '<div class="c"><div class="r"><div><b>'+esc(m.name)+'</b> <small>'+new Date(m.created).toLocaleString()+'</small><pre>'+esc(m.message)+'</pre></div><button class="d" data-t="guestbook" data-id="'+m.id+'">Delete</button></div></div>'}).join('')||'<small>Empty.</small>';
+ $('#pj').innerHTML=d.projects.map(function(p){return '<div class="c"><div class="r"><div><b>'+esc(p.title_en)+'</b> <small>('+esc(p.category)+', ♥ '+p.likes+')</small></div><div><button type="button" data-e="'+p.id+'">Edit</button> <button class="d" data-t="projects" data-id="'+p.id+'">Delete</button></div></div></div>'}).join('')
+}).catch(function(){tok='';$('#login').hidden=false;$('#app').hidden=true})}
+$('#go').onclick=function(){fetch('/api/admin/login',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({password:$('#pw').value})}).then(function(r){return r.json().then(function(j){if(!r.ok)throw j;return j})})
+ .then(function(j){tok=j.token;try{sessionStorage.setItem('t',tok)}catch(e){}$('#err').textContent='';load()}).catch(function(j){$('#err').textContent=j.error==='admin_disabled'?'ADMIN_PASSWORD is not set on the server.':'Wrong password or too many attempts.'})};
+$('#pw').onkeydown=function(e){if(e.key==='Enter')$('#go').click()};
+$('#out').onclick=function(){try{sessionStorage.removeItem('t')}catch(e){}location.reload()};
+document.addEventListener('click',function(e){var b=e.target;if(b.dataset.t&&confirm('Delete?'))call('/api/admin/'+b.dataset.t+'/'+b.dataset.id,'DELETE').then(load);
+ if(b.dataset.e){edit=+b.dataset.e;var p=D.projects.filter(function(x){return x.id===edit})[0],f=$('#pf');['title_en','title_ar','desc_en','desc_ar','tags','category','link'].forEach(function(k){f[k].value=p[k]||''});$('#ft').textContent='Edit project';$('#cancel').hidden=false;f.scrollIntoView()}});
+$('#cancel').onclick=function(){edit=null;$('#pf').reset();$('#ft').textContent='Add project';$('#cancel').hidden=true};
+$('#pf').onsubmit=function(e){e.preventDefault();var f=e.target,b={};['title_en','title_ar','desc_en','desc_ar','tags','category','link'].forEach(function(k){b[k]=f[k].value});
+ call(edit?'/api/admin/projects/'+edit:'/api/admin/projects',edit?'PUT':'POST',b).then(function(){$('#cancel').onclick();load()})};
+if(tok)load();
+</script></body></html>

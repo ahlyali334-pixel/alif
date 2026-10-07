@@ -1,0 +1,9 @@
+{
+  "name": "portfolio-fullstack",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Personal portfolio with a zero-dependency Node.js + SQLite backend",
+  "main": "server.js",
+  "scripts": { "start": "node server.js" },
+  "engines": { "node": ">=22.13" }
+}
